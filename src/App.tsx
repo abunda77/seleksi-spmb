@@ -10,6 +10,9 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [nilaiPrediksi, setNilaiPrediksi] = useState<string>('');
   const [prediksiPeringkat, setPrediksiPeringkat] = useState<number | null>(null);
+  const [hoverData, setHoverData] = useState<any[] | null>(null);
+  const [hoverAnchor, setHoverAnchor] = useState<HTMLElement | null>(null);
+  const [selectedNoDaftar, setSelectedNoDaftar] = useState<string | null>(null);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -47,10 +50,78 @@ function App() {
     setPrediksiPeringkat(idx === -1 ? sorted.length + 1 : idx + 1);
   }, [nilaiPrediksi, data]);
 
+  const handleRowClick = async (event: React.MouseEvent<HTMLElement>, noDaftar: string) => {
+    event.stopPropagation(); // Prevent container click
+
+    // Toggle: jika sudah terbuka untuk row yang sama, tutup
+    if (selectedNoDaftar === noDaftar) {
+      setHoverAnchor(null);
+      setHoverData(null);
+      setSelectedNoDaftar(null);
+      return;
+    }
+
+    setHoverAnchor(event.currentTarget);
+    setHoverData(null); // Reset data saat loading
+    setSelectedNoDaftar(noDaftar);
+
+    try {
+      const res = await axios.get<any[]>(`https://api.spmb.id/cari?no_daftar=${noDaftar}`);
+
+      // Parse seluruh response untuk mencari biodata siswa
+      const fullData = res.data.join(',');
+
+      // Cari section "Biodata Siswa" dan ambil data setelahnya
+      const biodataStart = fullData.indexOf('Biodata Siswa');
+      if (biodataStart !== -1) {
+        // Ambil data setelah "Biodata Siswa" sampai section berikutnya
+        const afterBiodata = fullData.substring(biodataStart);
+        const items = afterBiodata.split(',');
+
+        const parsedData = [];
+        let i = 1; // Skip "Biodata Siswa" header
+
+        while (i < items.length) {
+          // Cari pattern: fieldname, "field", label, value
+          if (items[i+1] === 'field' && items[i+2] && items[i+3]) {
+            parsedData.push([
+              items[i],      // field name
+              items[i+1],    // type (field)
+              items[i+2],    // label
+              items[i+3]     // value
+            ]);
+            i += 4;
+          } else if (items[i] === 'head') {
+            // Skip header sections
+            break;
+          } else {
+            i++;
+          }
+        }
+
+        setHoverData(parsedData);
+      } else {
+        setHoverData(null);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setHoverData(null);
+    }
+  };
+
+  const handleClickOutside = (event: React.MouseEvent) => {
+    setHoverAnchor(null);
+    setHoverData(null);
+    setSelectedNoDaftar(null);
+  };
+
   return (
     <Container maxWidth="md" sx={{ py: 6 }}>
       <Typography variant="h4" fontWeight={700} gutterBottom color="primary.main">
-        Seleksi Siswa SMPN 1 Banguntapan
+        Seleksi Siswa SMPN 1 Banguntapan 
+      </Typography>
+      <Typography variant="h4" fontWeight={700} gutterBottom color="primary.main">
+        Jalur Prestasi 
       </Typography>
       <Box mb={4} display="flex" flexDirection="column" alignItems="center">
         <TextField
@@ -59,9 +130,11 @@ function App() {
           value={nilaiPrediksi}
           onChange={e => setNilaiPrediksi(e.target.value.replace(/[^\d.,]/g, ''))}
           sx={{ width: 260, mb: 1 }}
-          InputProps={{
-            endAdornment: <InputAdornment position="end">poin</InputAdornment>,
-            inputProps: { inputMode: 'decimal', pattern: '[0-9.,]*' },
+          slotProps={{
+            input: {
+              endAdornment: <InputAdornment position="end">poin</InputAdornment>,
+              inputProps: { inputMode: 'decimal', pattern: '[0-9.,]*' },
+            }
           }}
         />
         {prediksiPeringkat !== null && (
@@ -93,7 +166,16 @@ function App() {
               </TableHead>
               <TableBody>
                 {data.data.map((row: Student) => (
-                  <TableRow key={row[3]} hover>
+                  <TableRow
+                    key={row[3]}
+                    hover
+                    onClick={e => handleRowClick(e, row[3])}
+                    sx={{
+                      cursor: 'pointer',
+                      backgroundColor: selectedNoDaftar === row[3] ? 'rgba(25, 118, 210, 0.08)' : 'inherit'
+                    }}
+                    data-no-daftar={row[3]}
+                  >
                     <TableCell>{row[0]}</TableCell>
                     <TableCell>{row[3]}</TableCell>
                     <TableCell>{row[4]}</TableCell>
@@ -103,6 +185,123 @@ function App() {
               </TableBody>
             </Table>
           </TableContainer>
+          {hoverAnchor && (
+            <>
+              {/* Backdrop */}
+              <Box
+                sx={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  bgcolor: 'rgba(0, 0, 0, 0.5)',
+                  zIndex: 1299,
+                }}
+                onClick={handleClickOutside}
+              />
+
+              {/* Popup */}
+              <Box
+                sx={{
+                  position: 'fixed',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  zIndex: 1300,
+                  width: 520,
+                  bgcolor: '#ffffff',
+                  border: '1px solid #d1d5db',
+                  borderRadius: 2,
+                  boxShadow: '0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                  p: 3,
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                  color: '#111827',
+                }}
+                onClick={e => e.stopPropagation()}
+              >
+              <Typography
+                variant="h6"
+                fontWeight={600}
+                color="#6b7280"
+                mb={2.5}
+                sx={{
+                  fontSize: 16,
+                  textAlign: 'left',
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                  borderBottom: '1px solid #e5e7eb',
+                  pb: 1
+                }}
+              >
+                Biodata Siswa
+              </Typography>
+              {hoverData ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  {Array.isArray(hoverData) && hoverData.length > 0 ? (
+                    hoverData.map((item, idx) => {
+                      // Pastikan item adalah array dengan struktur yang benar
+                      if (!Array.isArray(item) || item.length < 4) {
+                        return null;
+                      }
+
+                      const label = item[2] || 'Field';
+                      const value = Array.isArray(item[3]) ? item[3][0] : item[3];
+
+                      return (
+                        <Box
+                          key={idx}
+                          sx={{
+                            display: 'grid',
+                            gridTemplateColumns: '140px 1fr',
+                            gap: 2,
+                            alignItems: 'start',
+                            py: 0.5
+                          }}
+                        >
+                          <Typography
+                            variant="body2"
+                            color="#6b7280"
+                            sx={{
+                              fontSize: 14,
+                              fontWeight: 400,
+                              textAlign: 'left',
+                              lineHeight: 1.5
+                            }}
+                          >
+                            {label}
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            color="#374151"
+                            sx={{
+                              fontSize: 14,
+                              fontWeight: 500,
+                              textAlign: 'left',
+                              lineHeight: 1.5,
+                              wordBreak: 'break-word'
+                            }}
+                          >
+                            {value || '-'}
+                          </Typography>
+                        </Box>
+                      );
+                    }).filter(Boolean)
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                      Tidak ada data.
+                    </Typography>
+                  )}
+                </Box>
+              ) : (
+                <Box display="flex" justifyContent="center" alignItems="center" minHeight="60px">
+                  <CircularProgress size={24} />
+                </Box>
+              )}
+              </Box>
+            </>
+          )}
+
         </>
       ) : null}
     </Container>

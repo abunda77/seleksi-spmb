@@ -12,5 +12,6 @@ export default defineConfig({
         secure: false,
       },
     },
+    allowedHosts: ['seleksi-spmb.produkmastah.com'],
   },
 })
