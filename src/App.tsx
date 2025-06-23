@@ -66,7 +66,7 @@ function App() {
     setSelectedNoDaftar(noDaftar);
 
     try {
-      const res = await axios.get<any[]>(`https://api.spmb.id/cari?no_daftar=${noDaftar}`);
+      const res = await axios.get<any[]>(`/api/cari?no_daftar=${noDaftar}`);
 
       // Parse seluruh response untuk mencari biodata siswa
       const fullData = res.data.join(',');
@@ -298,7 +298,7 @@ function App() {
                   <CircularProgress size={24} />
                 </Box>
               )}
-              </Box>
+            </Box>
             </>
           )}
 

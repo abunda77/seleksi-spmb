@@ -1,0 +1,45 @@
+# Contoh konfigurasi Apache untuk mengatasi CORS
+# Letakkan di dalam VirtualHost
+
+<VirtualHost *:80>
+    ServerName seleksi-spmb.produkmastah.com
+    DocumentRoot /path/to/your/dist
+    
+    # Enable mod_rewrite dan mod_proxy
+    RewriteEngine On
+    
+    # Serve static files
+    <Directory "/path/to/your/dist">
+        AllowOverride All
+        Require all granted
+        
+        # Handle React Router
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule . /index.html [L]
+    </Directory>
+    
+    # Proxy untuk API SPMB
+    ProxyPreserveHost Off
+    ProxyPass /api/ https://api.spmb.id/
+    ProxyPassReverse /api/ https://api.spmb.id/
+    
+    # CORS headers untuk API
+    <Location "/api/">
+        Header always set Access-Control-Allow-Origin "*"
+        Header always set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+        Header always set Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range"
+        
+        # Handle preflight requests
+        RewriteCond %{REQUEST_METHOD} OPTIONS
+        RewriteRule ^(.*)$ $1 [R=200,L]
+    </Location>
+    
+    # Proxy untuk data seleksi
+    ProxyPass /seleksi/ https://bantulkab.spmb.id/seleksi/
+    ProxyPassReverse /seleksi/ https://bantulkab.spmb.id/seleksi/
+    
+    # Log files
+    ErrorLog ${APACHE_LOG_DIR}/seleksi-spmb_error.log
+    CustomLog ${APACHE_LOG_DIR}/seleksi-spmb_access.log combined
+</VirtualHost>
