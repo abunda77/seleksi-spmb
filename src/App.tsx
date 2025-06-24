@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Container, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Box, TextField, InputAdornment } from '@mui/material';
+import { Container, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Box, TextField, InputAdornment, Button } from '@mui/material';
 import type { SeleksiData, Student } from './types/seleksi';
 import './App.css';
 
@@ -13,6 +13,8 @@ function App() {
   const [hoverData, setHoverData] = useState<any[] | null>(null);
   const [hoverAnchor, setHoverAnchor] = useState<HTMLElement | null>(null);
   const [selectedNoDaftar, setSelectedNoDaftar] = useState<string | null>(null);
+  const [showAnalysis, setShowAnalysis] = useState<boolean>(false);
+  const [analysisData, setAnalysisData] = useState<any>(null);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -109,10 +111,136 @@ function App() {
     }
   };
 
-  const handleClickOutside = (event: React.MouseEvent) => {
+  const handleClickOutside = () => {
     setHoverAnchor(null);
     setHoverData(null);
     setSelectedNoDaftar(null);
+  };
+
+  const handleExportCSV = () => {
+    if (!data || !data.data || data.data.length === 0) {
+      alert('Tidak ada data untuk diekspor');
+      return;
+    }
+
+    // Header CSV dengan informasi sekolah
+    const schoolInfo = `# Data Seleksi ${data.sekolah.nama}`;
+    const locationInfo = `# Lokasi: ${data.sekolah.kota}, ${data.sekolah.propinsi}`;
+    const exportInfo = `# Diekspor pada: ${new Date().toLocaleString('id-ID')}`;
+    const totalInfo = `# Total Siswa: ${data.data.length}`;
+
+    const headers = ['Urut', 'No Daftar', 'Nama', 'Nilai Akhir'];
+
+    // Convert data to CSV format
+    const csvContent = [
+      schoolInfo,
+      locationInfo,
+      exportInfo,
+      totalInfo,
+      '', // Empty line
+      headers.join(','), // Header row
+      ...data.data.map((row: Student) => [
+        row[0], // Urut
+        `"${row[3]}"`, // No Daftar (quoted to handle numbers)
+        `"${row[4]}"`, // Nama (quoted to handle commas in names)
+        row[5] // Nilai Akhir
+      ].join(','))
+    ].join('\n');
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      const fileName = `seleksi-spmb-${data.sekolah.nama.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.csv`;
+      link.setAttribute('download', fileName);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Show success message
+      alert(`Data berhasil diekspor ke file: ${fileName}`);
+    }
+  };
+
+  const calculateAnalysis = () => {
+    if (!data || !data.data || data.data.length === 0) {
+      return null;
+    }
+
+    const scores = data.data.map((row: Student) => parseFloat(row[5]));
+    const sortedScores = [...scores].sort((a, b) => b - a);
+
+    // Statistik dasar
+    const total = scores.length;
+    const sum = scores.reduce((acc, score) => acc + score, 0);
+    const average = sum / total;
+    const highest = Math.max(...scores);
+    const lowest = Math.min(...scores);
+
+    // Median
+    const median = sortedScores.length % 2 === 0
+      ? (sortedScores[sortedScores.length / 2 - 1] + sortedScores[sortedScores.length / 2]) / 2
+      : sortedScores[Math.floor(sortedScores.length / 2)];
+
+    // Quartiles
+    const q1Index = Math.floor(total * 0.25);
+    const q3Index = Math.floor(total * 0.75);
+    const q1 = sortedScores[q1Index];
+    const q3 = sortedScores[q3Index];
+
+    // Standard deviation
+    const variance = scores.reduce((acc, score) => acc + Math.pow(score - average, 2), 0) / total;
+    const standardDeviation = Math.sqrt(variance);
+
+    // Distribusi nilai
+    const ranges = [
+      { label: '90-100', min: 90, max: 100, count: 0 },
+      { label: '80-89.99', min: 80, max: 89.99, count: 0 },
+      { label: '70-79.99', min: 70, max: 79.99, count: 0 },
+      { label: '60-69.99', min: 60, max: 69.99, count: 0 },
+      { label: '<60', min: 0, max: 59.99, count: 0 }
+    ];
+
+    scores.forEach(score => {
+      ranges.forEach(range => {
+        if (score >= range.min && score <= range.max) {
+          range.count++;
+        }
+      });
+    });
+
+    // Persentase kelulusan (asumsi passing grade 60)
+    const passCount = scores.filter(score => score >= 60).length;
+    const passRate = (passCount / total) * 100;
+
+    return {
+      total,
+      average: parseFloat(average.toFixed(2)),
+      median: parseFloat(median.toFixed(2)),
+      highest,
+      lowest,
+      q1: parseFloat(q1.toFixed(2)),
+      q3: parseFloat(q3.toFixed(2)),
+      standardDeviation: parseFloat(standardDeviation.toFixed(2)),
+      ranges,
+      passCount,
+      passRate: parseFloat(passRate.toFixed(2))
+    };
+  };
+
+  const handleShowAnalysis = () => {
+    const analysis = calculateAnalysis();
+    setAnalysisData(analysis);
+    setShowAnalysis(true);
+  };
+
+  const handleCloseAnalysis = () => {
+    setShowAnalysis(false);
+    setAnalysisData(null);
   };
 
   return (
@@ -151,9 +279,32 @@ function App() {
         <Typography color="error" align="center">{error}</Typography>
       ) : data ? (
         <>
-          <Typography variant="h6" gutterBottom sx={{ color: '#222', textShadow: '0 1px 0 #fff' }}>
-            {data.sekolah.nama} ({data.sekolah.kota}, {data.sekolah.propinsi})
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6" sx={{ color: '#222', textShadow: '0 1px 0 #fff' }}>
+              {data.sekolah.nama} ({data.sekolah.kota}, {data.sekolah.propinsi})
+            </Typography>
+            <Button
+              variant="contained"
+              onClick={handleExportCSV}
+              sx={{
+                bgcolor: '#059669',
+                '&:hover': {
+                  bgcolor: '#047857',
+                  boxShadow: '0 6px 8px -1px rgba(0, 0, 0, 0.15)',
+                  transform: 'translateY(-1px)'
+                },
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3,
+                py: 1,
+                borderRadius: 2,
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                transition: 'all 0.2s ease-in-out'
+              }}
+            >
+              � Export CSV
+            </Button>
+          </Box>
           <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: 3 }}>
             <Table>
               <TableHead>
