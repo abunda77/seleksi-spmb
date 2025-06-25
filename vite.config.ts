@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/seleksi': {
-        target: 'https://bantulkab.spmb.id',
+        target: 'https://sleman.spmb.id',
         changeOrigin: true,
         secure: false,
       },

@@ -13,13 +13,12 @@ export interface School {
 
 export interface Student {
   0: number;      // Urut
-  1: number;      // Unknown
-  2: number;      // Unknown
-  3: string;      // No Daftar
-  4: string;      // Nama
-  5: string;      // Nilai Akhir
-  6: string;      // Unknown
-  7: string;      // Age
+  1: string;      // No Daftar
+  2: string;      // Nama
+  3: string;      // Wilayah
+  4: string;      // Nilai Akhir
+  5: string;      // Status
+  6: string;      // Waktu Daftar
 }
 
 export interface SeleksiData {
